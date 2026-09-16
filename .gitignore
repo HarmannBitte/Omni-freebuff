@@ -1,0 +1,4 @@
+# Generated demo artifacts — recreated by demo/run-demo.sh
+demo/workspace/out/
+demo/workspace/state.json
+demo/workspace/PROGRESS.md
