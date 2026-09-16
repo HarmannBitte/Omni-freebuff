@@ -40,8 +40,9 @@ the fallback *might* pass — unconfirmed either way.)
 
 Exact mappings from the current official source
 (`CodebuffAI/freebuff`, `common/src/constants/free-agents.ts` +
-`freebuff-models.ts`). Patch these into the router's `AGENT_BY_MODEL`
-(`router/config.ts`) to close the gap:
+`freebuff-models.ts`). Already applied in
+`production/freebuff2api-agent-map.patch` (agent map + `/v1/models`
+catalog + price passthrough + updated tests) — apply with:
 
 ```ts
 'z-ai/glm-5.3-flash': 'base2-free-glm-5-3-flash',
@@ -54,6 +55,13 @@ Exact mappings from the current official source
 'stealth/ox-alpha': 'base2-free-ox-alpha',
 ```
 
+```bash
+cd /path/to/freebuff2api && git apply /path/to/production/freebuff2api-agent-map.patch
+```
+
+Patch status (verified 2026-09-16, zero spend): router unit tests 55/55,
+live `/v1/models` serves the new 10-model catalog with prices + real
+premium remaining, GLM chat correctly relays the 429 budget gate.
 Also load-bearing upstream: the chat gate rejects any request whose model
 differs from the session-admitted model (`session_model_mismatch`) — the
 router's per-model sessions already comply; don't share sessions across

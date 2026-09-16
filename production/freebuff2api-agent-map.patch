@@ -1,0 +1,114 @@
+diff --git a/router/config.test.ts b/router/config.test.ts
+index ecb51a7..4073ef5 100644
+--- a/router/config.test.ts
++++ b/router/config.test.ts
+@@ -131,12 +131,15 @@ describe('config', () => {
+   it('resolves model id to agent id', () => {
+     expect(AGENT_BY_MODEL['deepseek/deepseek-v4-flash']).toBe('base2-free-deepseek-flash')
+     expect(AGENT_BY_MODEL['mimo/mimo-v2.5']).toBe('base2-free-mimo')
++    expect(AGENT_BY_MODEL['z-ai/glm-5.3-flash']).toBe('base2-free-glm-5-3-flash')
++    expect(AGENT_BY_MODEL['crof/kimi-k3-eco']).toBe('base2-free-kimi-k3-eco')
+     expect(AGENT_FALLBACK).toBe('base2-free')
+   })
+ 
+   it('exposes model catalog for /v1/models', () => {
+-    expect(MODEL_CATALOG.length).toBe(6)
+-    expect(MODEL_CATALOG[0].id).toBe('deepseek/deepseek-v4-flash')
+-    expect(MODEL_CATALOG[0].quota).toBe('unlimited')
++    expect(MODEL_CATALOG.length).toBe(10)
++    expect(MODEL_CATALOG[0].id).toBe('z-ai/glm-5.3-flash')
++    expect(MODEL_CATALOG[0].quota).toBe('5 FB/hr')
++    expect(MODEL_CATALOG[0].priceFbPerHr).toBe(5)
+   })
+ })
+diff --git a/router/config.ts b/router/config.ts
+index d7378ad..4cb86f0 100644
+--- a/router/config.ts
++++ b/router/config.ts
+@@ -13,7 +13,7 @@
+ import { existsSync, readFileSync } from 'node:fs'
+ import { resolve } from 'node:path'
+ 
+-export type ModelQuotaType = 'unlimited' | 'premium' | 'referral' | 'limited'
++export type ModelQuotaType = 'unlimited' | 'premium' | 'referral' | 'limited' | 'freebucks'
+ 
+ export interface FreebuffModelOption {
+   id: string
+@@ -24,6 +24,8 @@ export interface FreebuffModelOption {
+   contextWindow: number
+   /** Conservative output ceiling in tokens (upstream decides; client cap). */
+   maxOutputTokens: number
++  /** Sept-2026 Freebucks price per 1h session (live price list). */
++  priceFbPerHr?: number
+ }
+ 
+ export interface FreebuffConfig {
+@@ -64,6 +66,14 @@ export const AGENT_BY_MODEL: Record<string, string> = {
+   'crof/greg-2-super': 'base2-free-greg-2-super',
+   'anthropic/claude-fable-5': 'base2-free-fable',
+   'meta/muse-spark-1.2-contributor': 'base2-free-muse-spark',
++  // Sept-2026 Freebucks catalog (exact ids from CodebuffAI/freebuff upstream)
++  'z-ai/glm-5.3-flash': 'base2-free-glm-5-3-flash',
++  'crof/kimi-k3-eco': 'base2-free-kimi-k3-eco',
++  'upstage/solar-pro4': 'base2-free-solar-pro4',
++  'openai/gpt-5.6-luna-es': 'base2-free-luna-es',
++  'meta/muse-spark-1.3-contributor': 'base2-free-muse-spark-1-3',
++  'google/gemini-3.8-flash': 'base2-free-gemini-3-8-flash',
++  'stealth/ox-alpha': 'base2-free-ox-alpha',
+ }
+ 
+ export const AGENT_FALLBACK = 'base2-free'
+@@ -79,12 +89,16 @@ export const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash'
+ const DEFAULT_WINDOW = 131_072
+ const DEFAULT_OUTPUT = 32_768
+ export const MODEL_CATALOG: FreebuffModelOption[] = [
+-  { id: 'deepseek/deepseek-v4-flash', display: 'DeepSeek V4 Flash', quota: 'unlimited', type: 'unlimited', contextWindow: 1_048_576, maxOutputTokens: DEFAULT_OUTPUT },
+-  { id: 'mimo/mimo-v2.5', display: 'MiMo 2.5', quota: 'unlimited', type: 'unlimited', contextWindow: DEFAULT_WINDOW, maxOutputTokens: DEFAULT_OUTPUT },
+-  { id: 'deepseek/deepseek-v4-pro', display: 'DeepSeek V4 Pro', quota: '6/day', type: 'premium', contextWindow: DEFAULT_WINDOW, maxOutputTokens: DEFAULT_OUTPUT },
+-  { id: 'minimax/minimax-m3', display: 'MiniMax M3', quota: '6/day', type: 'premium', contextWindow: 524_288, maxOutputTokens: DEFAULT_OUTPUT },
+-  { id: 'openai/gpt-5.6-luna', display: 'GPT-5.6 Luna', quota: '6/day', type: 'premium', contextWindow: 1_000_000, maxOutputTokens: DEFAULT_OUTPUT },
+-  { id: 'z-ai/glm-5.2', display: 'GLM 5.2', quota: 'referral-gated', type: 'referral', contextWindow: DEFAULT_WINDOW, maxOutputTokens: DEFAULT_OUTPUT },
++  { id: 'z-ai/glm-5.3-flash', display: 'GLM 5.3 Flash', quota: '5 FB/hr', type: 'freebucks', contextWindow: DEFAULT_WINDOW, maxOutputTokens: DEFAULT_OUTPUT, priceFbPerHr: 5 },
++  { id: 'crof/kimi-k3-eco', display: 'Kimi K3 Eco', quota: '5 FB/hr + 5/day', type: 'premium', contextWindow: DEFAULT_WINDOW, maxOutputTokens: DEFAULT_OUTPUT, priceFbPerHr: 5 },
++  { id: 'mimo/mimo-v2.5', display: 'MiMo 2.5', quota: '10 FB/hr', type: 'freebucks', contextWindow: DEFAULT_WINDOW, maxOutputTokens: DEFAULT_OUTPUT, priceFbPerHr: 10 },
++  { id: 'upstage/solar-pro4', display: 'Solar Pro 4', quota: '10 FB/hr', type: 'freebucks', contextWindow: DEFAULT_WINDOW, maxOutputTokens: DEFAULT_OUTPUT, priceFbPerHr: 10 },
++  { id: 'deepseek/deepseek-v4-flash', display: 'DeepSeek V4 Flash', quota: '15 FB/hr', type: 'freebucks', contextWindow: 1_048_576, maxOutputTokens: DEFAULT_OUTPUT, priceFbPerHr: 15 },
++  { id: 'meta/muse-spark-1.3-contributor', display: 'Muse Spark 1.3', quota: '15 FB/hr', type: 'freebucks', contextWindow: DEFAULT_WINDOW, maxOutputTokens: DEFAULT_OUTPUT, priceFbPerHr: 15 },
++  { id: 'meta/muse-spark-1.2-contributor', display: 'Muse Spark 1.2', quota: '15 FB/hr + 5/day', type: 'premium', contextWindow: DEFAULT_WINDOW, maxOutputTokens: DEFAULT_OUTPUT, priceFbPerHr: 15 },
++  { id: 'openai/gpt-5.6-luna', display: 'GPT-5.6 Luna', quota: '20 FB/hr + 5/day', type: 'premium', contextWindow: 1_000_000, maxOutputTokens: DEFAULT_OUTPUT, priceFbPerHr: 20 },
++  { id: 'openai/gpt-5.6-luna-es', display: 'GPT-5.6 Luna ES', quota: '20 FB/hr + 5/day', type: 'premium', contextWindow: 1_000_000, maxOutputTokens: DEFAULT_OUTPUT, priceFbPerHr: 20 },
++  { id: 'google/gemini-3.8-flash', display: 'Gemini 3.8 Flash', quota: '50 FB/hr + 5/day', type: 'premium', contextWindow: 1_000_000, maxOutputTokens: DEFAULT_OUTPUT, priceFbPerHr: 50 },
+ ]
+ export function loadConfig(path = process.env.ROUTER_CONFIG ?? DEFAULT_CONFIG_PATH): RouterConfig {
+   const resolved = resolve(path)
+diff --git a/router/server.test.ts b/router/server.test.ts
+index 5beccda..b5be637 100644
+--- a/router/server.test.ts
++++ b/router/server.test.ts
+@@ -193,11 +193,12 @@ describe('Router server', () => {
+ 
+       interface ModelsResponse {
+         object: string
+-        data: Array<{ id: string; display?: string; quota?: string; type?: string; userRemaining?: number; userResetAt?: string; remaining?: number; total?: number }>
++        data: Array<{ id: string; display?: string; quota?: string; type?: string; priceFbPerHr?: number; userRemaining?: number; userResetAt?: string; remaining?: number; total?: number }>
+       }
+       const body = await res.json() as ModelsResponse
+       expect(body.data.length).toBe(MODEL_CATALOG.length)
+-      expect(body.data[0].id).toBe('deepseek/deepseek-v4-flash')
++      expect(body.data[0].id).toBe('z-ai/glm-5.3-flash')
++      expect(body.data[0].priceFbPerHr).toBe(5)
+       expect(body.object).toBe('list')
+     })
+ 
+diff --git a/router/server.ts b/router/server.ts
+index 55be1c3..758c14f 100644
+--- a/router/server.ts
++++ b/router/server.ts
+@@ -57,6 +57,7 @@ async function modelsResponse(pool: FreebuffTokenPool): Promise<Response> {
+       max_output_tokens: m.maxOutputTokens,
+       quota: m.quota,
+       type: m.type,
++      ...(m.priceFbPerHr != null ? { priceFbPerHr: m.priceFbPerHr } : {}),
+     }
+     if (rl) {
+       entry.userRemaining = rl.limit - rl.recentCount
