@@ -88,10 +88,13 @@ WANT_ORDER=(
   "minimax/MiniMax-M2.1"
 )
 if [ -n "$FREEBBUFF_MODELS" ]; then
-  # Prefer unlimited freebuff models first (flash, mimo), then premium 6/day ones.
-  while read -r m; do WANT_ORDER+=("$m"); done <<EOF
-$(echo "$FREEBBUFF_MODELS" | grep -i -E "flash|mimo" || true)
-$(echo "$FREEBBUFF_MODELS" | grep -i -v -E "flash|mimo" || true)
+  # Cheapest-first so the 100 Freebucks/day stretch furthest.
+  # Prices observed 2026-09-16 (FB/hr, charged once per session start):
+  #   5: glm-5.3-flash, kimi-k3-eco · 10: mimo, solar-pro4
+  #  15: deepseek-v4-flash, muse-spark · 20: luna · 50: gemini-3.8-flash
+  while read -r m; do [ -n "$m" ] && WANT_ORDER+=("$m"); done <<EOF
+$(for pat in "glm-5.3-flash" "kimi-k3-eco" "mimo" "solar" "deepseek-v4-flash" "muse-spark" "luna" "gemini"; do echo "$FREEBBUFF_MODELS" | grep -i "$pat" || true; done)
+$(echo "$FREEBBUFF_MODELS" | grep -i -v -E "glm-5.3-flash|kimi-k3-eco|mimo|solar|deepseek-v4-flash|muse-spark|luna|gemini" || true)
 EOF
 fi
 
