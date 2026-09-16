@@ -110,8 +110,14 @@ overflow. Prefer unlimited `flash`/`mimo` at the very bottom.
 - **ToS gray area you accepted:** freebuff2api's license states usage "may
   violate [FreeBuff's] Terms of Service" — the API path bypasses the CLI
   ads that fund the free tier. Codebuff can also break the protocol anytime.
+- **Metered bottom tier.** 100 Freebucks/day free; sessions are priced
+  per model-hour and charged at session start. Size overnight runs for
+  ~20 GLM-hours/day, not infinity.
 - **One session per FreeBuff account per model.** One token = one lane;
   add accounts for parallelism.
+- **Bridge drift risk.** `freebuff2api`'s catalog predates the Freebucks
+  economy (Aug 2026) — watch for updates; new models and 429 shapes may
+  need router support.
 - **Free models are weaker.** Keep loop steps small and verifiable so any
   tier can execute one step; the priority order keeps hard work on subs.
 - Prefer the fully-official route? Skip FreeBuff: OmniRoute's dashboard

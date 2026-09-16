@@ -77,8 +77,13 @@ sourced from the Apache-2.0 `CodebuffAI/freebuff` repo.
 - Chat requires `codebuff_metadata.cost_mode: 'free'` (else `402 out of
   credits`) and a first system message opening with the `You are Buffy…`
   marker (else `403 free_mode_cli_required`). freebuff2api injects both.
-- Quotas (full-access tier): Flash + MiMo **unlimited**, Pro / MiniMax M3 /
-  Luna **6 sessions/day**, streaks add +1/day. Reset: midnight Pacific.
+- Economy (Sept 2026, observed live): **100 Freebucks/day**, reset
+  midnight Pacific. Session prices per model-hour, charged once at admit:
+  GLM 5.3 Flash / Kimi K3 Eco 5 · MiMo 2.5 / Solar Pro 4 10 ·
+  DeepSeek V4 Flash / Muse Spark 15 · Luna 20 · Gemini 3.8 Flash 50.
+  Premium pools (Kimi, Muse 1.2, Luna, Gemini) additionally capped at
+  **5 sessions/day**. Broke admits fail with `429 freebucksShortfall`.
+  (The pre-Sept "unlimited Flash / 6-per-day premium" model is obsolete.)
 - Env overrides the CLI itself respects: `NEXT_PUBLIC_CODEBUFF_APP_URL`
   (API host), `NEXT_PUBLIC_FREEBUFF_APP_URL` (login origin).
 
