@@ -59,7 +59,7 @@ function admit(model) {
   if (!entry) {
     return { httpStatus: 404, body: { error: { type: "not_found", message: `Model \`${model}\` is unavailable`, param: "model" } } };
   }
-  if (sessions.has(model)) return null; // active session: reuse, no recharge
+  if (sessions.has(model)) return { reused: true }; // active session: reuse, no recharge
   const reset = nextReset();
   if (entry.premiumCap !== null && (premiumUsed[model] ?? 0) >= entry.premiumCap) {
     return {
