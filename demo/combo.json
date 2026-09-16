@@ -1,0 +1,12 @@
+{
+  "name": "never-stop-coding",
+  "strategy": "priority",
+  "comment": "Tier order = failover order. Mirrors the production combo created by production/create-omniroute-combo.sh",
+  "models": [
+    { "model": "cc/claude-opus-4-6", "upstream": "http://127.0.0.1:8891/v1", "tier": "subscription" },
+    { "model": "cx/gpt-5.2-codex", "upstream": "http://127.0.0.1:8892/v1", "tier": "subscription" },
+    { "model": "deepseek/deepseek-v4-pro", "upstream": "http://127.0.0.1:8787/v1", "tier": "free-premium" },
+    { "model": "deepseek/deepseek-v4-flash", "upstream": "http://127.0.0.1:8787/v1", "tier": "free-unlimited" },
+    { "model": "mimo/mimo-v2.5", "upstream": "http://127.0.0.1:8787/v1", "tier": "free-unlimited" }
+  ]
+}

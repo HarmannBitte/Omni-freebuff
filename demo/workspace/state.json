@@ -1,0 +1,65 @@
+{
+  "combo": "never-stop-coding",
+  "completed": [
+    "t1-scaffold",
+    "t2-config",
+    "t3-queue",
+    "t4-worker",
+    "t5-tests",
+    "t6-docs",
+    "t7-changelog"
+  ],
+  "log": [
+    {
+      "step": "t1-scaffold",
+      "via": "cc/claude-opus-4-6",
+      "provider": "claude-sub",
+      "fallbacks": 0,
+      "at": "2026-09-16T21:35:47.282Z"
+    },
+    {
+      "step": "t2-config",
+      "via": "cc/claude-opus-4-6",
+      "provider": "claude-sub",
+      "fallbacks": 0,
+      "at": "2026-09-16T21:35:47.290Z"
+    },
+    {
+      "step": "t3-queue",
+      "via": "cc/claude-opus-4-6",
+      "provider": "claude-sub",
+      "fallbacks": 0,
+      "at": "2026-09-16T21:35:47.297Z"
+    },
+    {
+      "step": "t4-worker",
+      "via": "cx/gpt-5.2-codex",
+      "provider": "codex-sub",
+      "fallbacks": 1,
+      "at": "2026-09-16T21:35:47.315Z"
+    },
+    {
+      "step": "t5-tests",
+      "via": "cx/gpt-5.2-codex",
+      "provider": "codex-sub",
+      "fallbacks": 1,
+      "at": "2026-09-16T21:35:47.324Z"
+    },
+    {
+      "step": "t6-docs",
+      "via": "deepseek/deepseek-v4-pro",
+      "provider": "freebuff-mock",
+      "fallbacks": 2,
+      "at": "2026-09-16T21:35:47.353Z"
+    },
+    {
+      "step": "t7-changelog",
+      "via": "deepseek/deepseek-v4-pro",
+      "provider": "freebuff-mock",
+      "fallbacks": 2,
+      "at": "2026-09-16T21:35:47.362Z"
+    }
+  ],
+  "startedAt": "2026-09-16T21:35:47.196Z",
+  "updatedAt": "2026-09-16T21:35:47.362Z"
+}
