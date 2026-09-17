@@ -54,8 +54,8 @@ FIFO="$(mktemp -u /tmp/fb-task-in.XXXXXX)"; mkfifo "$FIFO"
 WRITER_PID=$!
 
 echo "── running (log: $LOG) ──"
-timeout 220 script -qec "$FREEBUFF_BIN --cwd $WORKDIR" /dev/null < "$FIFO" > "$LOG" 2>&1
-APP_EXIT=$?
+APP_EXIT=0
+timeout 220 script -qec "$FREEBUFF_BIN --cwd $WORKDIR" /dev/null < "$FIFO" > "$LOG" 2>&1 || APP_EXIT=$?
 kill "$WRITER_PID" 2>/dev/null || true; rm -f "$FIFO"
 echo "app exit: $APP_EXIT"
 

@@ -95,3 +95,13 @@ spent by the account owner. Premium pools untouched (5/5 each).
 ./run-freebuff-task.sh "Create hello.mjs that prints HELLO_FROM_FREEBUFF, run it with node, show output. Just do it, no questions."
 ./check-freebuff-budget.sh          # expect 5/100 spent
 ```
+
+## 6. Attempt-4 result (2026-09-17, ✅ SUCCESS)
+
+Staged input worked first try. The real CLI created `hello.mjs`,
+ran `node hello.mjs`, and reported `HELLO_FROM_FREEBUFF / exit code 0`.
+Session: GLM 5.3 Flash, 14.2K tokens (1%), ads rendered inline.
+Spend: 5 → 10 FB (one 5-FB session, as predicted). The app idled past
+the double Ctrl-C, so `timeout 220` reaped it — driver now tolerates
+that (`|| APP_EXIT=$?`, postflight always runs). Total live spend for
+both reset-day items: 10 FB (patch check 5 + CLI task 5).
