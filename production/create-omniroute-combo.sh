@@ -1,146 +1,166 @@
 #!/usr/bin/env bash
-# Wire freebuff2api into OmniRoute as the $0 fallback tier + create the
-# "never-stop-coding" combo.
+# Wire freebuff2api into REAL OmniRoute + create the never-stop-coding combo.
+#
+# Verified against OmniRoute 3.7.9 (npm, live runtime test) + 3.8.x route
+# sources and dashboard calls. Fully non-interactive and idempotent:
+# re-running reuses the existing node/connection and rebuilds the combo.
 #
 # Usage:
 #   export OMNIROUTE_BASE_URL=http://127.0.0.1:20128
-#   export OMNIROUTE_MANAGE_KEY="<key with manage scope>"
+#   export OMNIROUTE_MANAGE_KEY="<dashboard API key with the manage scope>"
+#   export FREEBUFF2API_BASE_URL=http://127.0.0.1:8787   # optional
+#   export ROUTER_KEY="<only if your freebuff2api requires auth>"  # optional
+#   export SUB_MODELS="cc/model-a,cx/model-b"            # optional override
 #   ./create-omniroute-combo.sh
 #
 # Prerequisites:
-#   1. OmniRoute running  (npx omniroute  → dashboard on :20128)
-#   2. freebuff2api running (see setup-freebuff2api.sh → :8787)
-#   3. Your subscription providers connected (Dashboard → Providers):
-#      Claude Code (cc/*), Codex (cx/*), Gemini CLI, etc.
+#   1. OmniRoute running (npm install -g omniroute → omniroute → :20128).
+#      Needs Node 22.22+ or 24+ (Next.js 16; Node 20 breaks all API routes).
+#   2. freebuff2api running (see setup-freebuff2api.sh → :8787).
+#   3. Your subscription providers connected (Dashboard → Providers).
 set -euo pipefail
 
 BASE="${OMNIROUTE_BASE_URL:-http://127.0.0.1:20128}"
 MANAGE="${OMNIROUTE_MANAGE_KEY:-}"
+FB="${FREEBUFF2API_BASE_URL:-http://127.0.0.1:8787}"
+APIKEY="${ROUTER_KEY:-sk-no-key-required}"
+COMBO_NAME="never-stop-coding"
+NODE_NAME="freebuff"
+CONN_NAME="freebuff-conn"
 
 if [ -z "$MANAGE" ]; then
-  echo "❌ Set OMNIROUTE_MANAGE_KEY first (Dashboard → Endpoints → key with 'manage' scope)." >&2
+  echo "❌ Set OMNIROUTE_MANAGE_KEY first (Dashboard → API Keys → key with 'manage' scope)." >&2
   exit 1
 fi
 
-echo "── 0/4 Sanity checks ──"
-curl -sf "$BASE/v1/models" -H "Authorization: Bearer $MANAGE" >/dev/null \
+AUTH=(-H "Authorization: Bearer $MANAGE")
+api() { curl -sf --max-time 30 "$@" ; }
+
+echo "── 0/6 Sanity checks ──"
+api "$BASE/api/monitoring/health" >/dev/null \
   && echo "✅ OmniRoute reachable at $BASE" \
   || { echo "❌ OmniRoute not reachable at $BASE"; exit 1; }
-curl -sf http://127.0.0.1:8787/health >/dev/null \
-  && echo "✅ freebuff2api reachable at 127.0.0.1:8787" \
+api "$FB/health" >/dev/null \
+  && echo "✅ freebuff2api reachable at $FB" \
   || { echo "❌ freebuff2api not reachable. Run production/setup-freebuff2api.sh first."; exit 1; }
 
 echo
-echo "── 1/4 Add freebuff2api as a custom OpenAI-compatible provider ──"
-echo "   (Dashboard step — the local-provider connect payload is UI-driven)"
-echo
-echo "   1. Open  $BASE/dashboard  → Providers"
-echo "   2. Pick any LOCAL OpenAI-compatible slot you are NOT otherwise using,"
-echo "      e.g. 'llama.cpp' (alias: llamacpp). It accepts a custom base URL."
-echo "   3. Set Base URL →  http://127.0.0.1:8787/v1"
-echo "      API key     →  your ROUTER_KEY (or anything, e.g. sk-no-key-required,"
-echo "                       if the router is open)"
-echo "   4. Connect, then Available Models → 'Import from /models' (or Auto-Sync)."
-echo "      You should see: deepseek-v4-flash, mimo, deepseek-v4-pro, minimax-m3…"
-echo
-echo "   👉 Press ENTER once the models are imported."
-read -r _
-
-echo
-echo "── 2/4 Discovering imported freebuff models ──"
-# List models and pick the ones served under the repurposed local slot.
-# Try common local aliases in order; use the first that yields models.
-CANDIDATE_PREFIXES="llamacpp lmstudio ollama ooba vllm"
-FREEBBUFF_MODELS=""
-SLOT=""
-for p in $CANDIDATE_PREFIXES; do
-  IDS="$(curl -s "$BASE/v1/models?prefix=alias" -H "Authorization: Bearer $MANAGE" \
-    | python3 -c "
+echo "── 1/6 Provider node (freebuff2api as OpenAI-compatible endpoint) ──"
+NODE_ID="$(api "$BASE/api/provider-nodes" "${AUTH[@]}" | python3 -c "
 import json,sys
-d=json.load(sys.stdin)
-for m in d.get('data',[]):
-    i=m.get('id','')
-    if i.startswith('$p/'): print(i)
-" 2>/dev/null)"
-  if [ -n "$IDS" ]; then SLOT="$p"; FREEBBUFF_MODELS="$IDS"; break; fi
-done
-
-if [ -z "$FREEBBUFF_MODELS" ]; then
-  echo "⚠️  No models found under local slots ($CANDIDATE_PREFIXES)."
-  echo "   Did the import finish? You can re-run this script after importing."
-  echo "   Continuing with subscription+cheap tiers only…"
+for n in json.load(sys.stdin).get('nodes', []):
+    if n.get('name') == '$NODE_NAME':
+        print(n['id']); break
+" 2>/dev/null || true)"
+if [ -n "$NODE_ID" ]; then
+  echo "✅ Reusing existing node '$NODE_NAME' ($NODE_ID)"
 else
-  echo "✅ Using slot '$SLOT':"
-  echo "$FREEBBUFF_MODELS" | sed 's/^/     - /'
+  NODE_ID="$(api -X POST "$BASE/api/provider-nodes" "${AUTH[@]}" \
+    -H "Content-Type: application/json" \
+    -d "{\"type\":\"openai-compatible\",\"name\":\"$NODE_NAME\",\"prefix\":\"fb\",\"apiType\":\"chat\",\"baseUrl\":\"$FB/v1\"}" \
+    | python3 -c "import json,sys; print(json.load(sys.stdin)['node']['id'])")"
+  echo "✅ Node created: $NODE_ID (baseUrl $FB/v1)"
 fi
 
 echo
-echo "── 3/4 Creating combo 'never-stop-coding' (strategy: priority) ──"
-# Tier order = failover order. OmniRoute fails over on transient errors
-# (429 rate-limit incl. 5h subscription caps, timeouts, 5xx).
-# NOTE: adjust the subscription/cheap model ids to what YOU connected.
-# This script keeps only ids that actually exist in your catalog.
-WANT_ORDER=(
-  "cc/claude-opus-4-6"
-  "cc/claude-sonnet-4-5-20250929"
-  "cx/gpt-5.2-codex"
-  "glm/glm-4.7"
-  "minimax/MiniMax-M2.1"
-)
-if [ -n "$FREEBBUFF_MODELS" ]; then
-  # Cheapest-first so the 100 Freebucks/day stretch furthest.
-  # Prices observed 2026-09-16 (FB/hr, charged once per session start):
-  #   5: glm-5.3-flash, kimi-k3-eco · 10: mimo, solar-pro4
-  #  15: deepseek-v4-flash, muse-spark · 20: luna · 50: gemini-3.8-flash
-  while read -r m; do [ -n "$m" ] && WANT_ORDER+=("$m"); done <<EOF
-$(for pat in "glm-5.3-flash" "kimi-k3-eco" "mimo" "solar" "deepseek-v4-flash" "muse-spark" "luna" "gemini"; do echo "$FREEBBUFF_MODELS" | grep -i "$pat" || true; done)
-$(echo "$FREEBBUFF_MODELS" | grep -i -v -E "glm-5.3-flash|kimi-k3-eco|mimo|solar|deepseek-v4-flash|muse-spark|luna|gemini" || true)
-EOF
+echo "── 2/6 Provider connection (credential for the node) ──"
+CONN_OK="$(api "$BASE/api/providers" "${AUTH[@]}" | python3 -c "
+import json,sys
+print('yes' if any(c.get('name') == '$CONN_NAME' for c in json.load(sys.stdin).get('connections', [])) else 'no')
+" 2>/dev/null || echo unknown)"
+if [ "$CONN_OK" = "yes" ]; then
+  echo "✅ Reusing existing connection '$CONN_NAME'"
+else
+  api -X POST "$BASE/api/providers" "${AUTH[@]}" \
+    -H "Content-Type: application/json" \
+    -d "{\"provider\":\"$NODE_ID\",\"name\":\"$CONN_NAME\",\"url\":\"$FB/v1\",\"apiKey\":\"$APIKEY\",\"isActive\":true}" >/dev/null
+  echo "✅ Connection '$CONN_NAME' created on node $NODE_ID"
 fi
 
-CATALOG="$(curl -s "$BASE/v1/models?prefix=alias" -H "Authorization: Bearer $MANAGE")"
-MODELS_JSON="$(python3 - "$CATALOG" "${WANT_ORDER[@]}" <<'PY'
-import json,sys
-catalog=json.loads(sys.argv[1])
-ids={m.get('id') for m in catalog.get('data',[])}
-out=[]
-for w in sys.argv[2:]:
-    if w in ids: out.append({"model": w})
-    else: print(f"  ⏭️  skipping {w} (not in catalog — connect that provider to enable it)", file=sys.stderr)
+echo
+echo "── 3/6 FreeBuff model targets (cheapest-first) ──"
+# OmniRoute combo targets for node models use "<nodeId>/<upstreamModelId>".
+# (The 'fb/' prefix is display-only.) Freebucks/hr, charged once per session:
+#   5: glm-5.3-flash, kimi-k3-eco · 10: mimo, solar-pro4
+#  15: deepseek-v4-flash, muse-spark · 20: luna · 50: gemini-3.8-flash
+FB_TARGETS="$(api "$FB/v1/models" | python3 -c "
+import json, sys
+ids = [m['id'] for m in json.load(sys.stdin).get('data', [])]
+price = [('glm-5.3-flash',0),('kimi-k3-eco',1),('mimo',2),('solar',3),
+         ('deepseek-v4-flash',4),('muse-spark',5),('luna',6),('gemini',7)]
+def rank(i):
+    l = i.lower()
+    for pat, r in price:
+        if pat in l: return r
+    return 8
+for i in sorted(ids, key=rank):
+    print('$NODE_ID/' + i)
+")"
+echo "$FB_TARGETS" | sed 's/^/     - /'
+
+echo
+echo "── 4/6 Creating combo '$COMBO_NAME' (strategy: priority) ──"
+WANT_SUBS="${SUB_MODELS:-cc/claude-opus-4-6,cc/claude-sonnet-4-5-20250929,cx/gpt-5.2-codex,glm/glm-4.7,minimax/MiniMax-M2.1}"
+CATALOG="$(api "$BASE/v1/models" "${AUTH[@]}" || echo '{"data":[]}')"
+# NOTE: node models never appear in /v1/models (only combos + managed-provider
+# models do) — so subscription ids are filtered against the catalog, while
+# FreeBuff targets (built in step 3) are always kept.
+MODELS_JSON="$(python3 - "$CATALOG" "$WANT_SUBS" "$FB_TARGETS" <<'PY'
+import json, sys
+ids = {m.get('id') for m in json.loads(sys.argv[1]).get('data', [])}
+out = []
+for w in sys.argv[2].split(','):
+    w = w.strip()
+    if not w:
+        continue
+    if w in ids:
+        out.append(w)
+    else:
+        print(f"  ⏭️  skipping {w} (not in catalog — connect that provider to enable it)", file=sys.stderr)
+for t in sys.argv[3].splitlines():
+    if t.strip():
+        out.append(t.strip())
 print(json.dumps(out))
 PY
 )"
 echo "Combo chain:"
-echo "$MODELS_JSON" | python3 -c "import json,sys; [print('     %d. %s'%(i+1,m['model'])) for i,m in enumerate(json.load(sys.stdin))]"
-
-COMBO_RESP="$(curl -s -X POST "$BASE/api/combos" \
-  -H "Authorization: Bearer $MANAGE" \
+echo "$MODELS_JSON" | python3 -c "import json,sys; [print('     %d. %s'%(i+1,m)) for i,m in enumerate(json.load(sys.stdin))]"
+EXISTING_ID="$(api "$BASE/api/combos" "${AUTH[@]}" | python3 -c "
+import json,sys
+for c in json.load(sys.stdin).get('combos', []):
+    if c.get('name') == '$COMBO_NAME':
+        print(c['id']); break
+" 2>/dev/null || true)"
+if [ -n "$EXISTING_ID" ]; then
+  api -X DELETE "$BASE/api/combos/$EXISTING_ID" "${AUTH[@]}" >/dev/null \
+    && echo "   (replaced existing combo $EXISTING_ID)"
+fi
+api -X POST "$BASE/api/combos" "${AUTH[@]}" \
   -H "Content-Type: application/json" \
-  -d "$(python3 -c "import json,sys; print(json.dumps({'name':'never-stop-coding','strategy':'priority','models':json.loads(sys.argv[1])}))" "$MODELS_JSON")")"
-echo "API response: $COMBO_RESP" | head -c 600; echo
+  -d "$(python3 -c "import json,sys; print(json.dumps({'name':'$COMBO_NAME','strategy':'priority','models':json.loads(sys.argv[1]),'config':{}}))" "$MODELS_JSON")" >/dev/null
+echo "✅ Combo '$COMBO_NAME' created (priority failover, top to bottom)"
 
 echo
-echo "── 4/4 Minting chat-scoped key for the agent loop ──"
-KEY_RESP="$(curl -s -X POST "$BASE/api/keys" \
-  -H "Authorization: Bearer $MANAGE" \
+echo "── 5/6 Minting API key for the agent loop ──"
+CHAT_KEY="$(api -X POST "$BASE/api/keys" "${AUTH[@]}" \
   -H "Content-Type: application/json" \
-  -d '{"name":"autonomous-agent-loop","scopes":["chat"]}')"
-echo "$KEY_RESP" | head -c 600; echo
-CHAT_KEY="$(echo "$KEY_RESP" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('key') or d.get('apiKey') or d.get('token') or '')" 2>/dev/null || true)"
+  -d '{"name":"autonomous-agent-loop"}' \
+  | python3 -c "import json,sys; print(json.load(sys.stdin).get('key',''))" 2>/dev/null || true)"
 if [ -n "$CHAT_KEY" ]; then
-  echo
   echo "✅ Add to .env:"
   echo "   OMNIROUTE_CHAT_KEY=\"$CHAT_KEY\""
-  echo "   AGENT_MODEL=\"never-stop-coding\""
+  echo "   AGENT_MODEL=\"$COMBO_NAME\""
+else
+  echo "⚠️  Key minting failed — mint one in Dashboard → API Keys and retry."
 fi
 
 echo
-echo "── Smoke test ──"
-curl -s "$BASE/v1/chat/completions" \
+echo "── 6/6 Smoke test ──"
+api -X POST "$BASE/v1/chat/completions" \
   -H "Authorization: Bearer ${CHAT_KEY:-$MANAGE}" \
   -H "Content-Type: application/json" \
-  -d '{"model":"never-stop-coding","messages":[{"role":"user","content":"Reply with exactly: ROUTE_OK"}],"max_tokens":16}' \
-  | head -c 800; echo
+  -d "{\"model\":\"$COMBO_NAME\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with exactly: ROUTE_OK\"}],\"max_tokens\":16,\"stream\":false}" \
+  | head -c 500; echo
 echo
 echo "Done. Point your agent loop at:"
-echo "  Base URL: $BASE/v1   Model: never-stop-coding"
+echo "  Base URL: $BASE/v1   Model: $COMBO_NAME"

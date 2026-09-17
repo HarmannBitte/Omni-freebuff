@@ -25,7 +25,8 @@ production wiring for your machine.
   normal login. No patching, no DNS tricks needed for our direction.
 - OmniRoute fails over on **429/5xx/timeout** (exactly what a spent 5h
   subscription window looks like) and supports strict **priority combos**.
-  FreeBuff's Flash/MiMo models are **unlimited** — a perfect bottom tier.
+  FreeBuff's metered models (100 Freebucks/day free) make a cheap bottom
+  tier — see `production/OMNIROUTE.md` for the verified wiring.
 
 ## 2. Demo results (ran in this workspace, no keys)
 
@@ -92,9 +93,11 @@ cp .env.example .env            # fill in as you go
 # (or manually: freebuff login → ./extract-freebuff-token.sh → bunx freebuff2api)
 
 # B. OmniRoute side → combo + key
-npx omniroute                   # dashboard on :20128, connect cc/* + cx/* subs
+npm install -g omniroute         # needs Node 22.22+/24+ (Next.js 16)
+omniroute                       # dashboard on :20128, connect cc/* + cx/* subs
 ./create-omniroute-combo.sh     # adds :8787 as custom endpoint, creates
                                 # 'never-stop-coding' combo, mints a chat key
+# (full guide incl. dashboard/manual path: production/OMNIROUTE.md)
 
 # C. Agent loop → point at the real thing
 cd ../demo
